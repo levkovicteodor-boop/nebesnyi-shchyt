@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="uk"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Небесний щит — онлайн</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#07111d;color:#eaf4ff;font-family:system-ui,Arial,sans-serif}
+header{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;padding:12px 16px;background:#0d1a2b;border-bottom:1px solid #2a4564}
+h1{font-size:clamp(17px,2.5vw,25px);margin:0;letter-spacing:.6px}.muted{color:#9db4cf;font-size:12px}
+.stat{padding:8px 11px;border:1px solid #304d6c;border-radius:10px;background:#091524;font-size:12px}.stat b{color:#68c3ff;font-size:15px}
+main{display:grid;grid-template-columns:minmax(0,1fr) 285px;gap:12px;padding:12px;max-width:1600px;margin:auto}
+#map{position:relative;min-height:calc(100vh - 94px);max-height:1000px;overflow:hidden;border:1px solid #314b67;border-radius:16px;background:radial-gradient(ellipse at 50% 45%,#1c3a3b,#10242f 55%,#081522 85%);touch-action:manipulation}
+#canvas{position:absolute;inset:0;width:100%;height:100%}.maplabel{position:absolute;left:50%;top:9%;transform:translateX(-50%);font-size:11px;letter-spacing:2px;color:#aec7d7;background:#071522bb;padding:5px 9px;border-radius:6px;pointer-events:none}
+.zone{position:absolute;transform:translate(-50%,-50%);z-index:2;border:1px solid #55baff;background:#0b2840e8;border-radius:8px;padding:5px 7px;font-size:11px;color:#eaf7ff;white-space:nowrap;cursor:pointer;box-shadow:0 0 10px #0006}
+.zone.red{border-color:#ff6477;background:#421d2ce8}.zone .pct{font-size:9px;display:block;color:#a9c7dc}
+.side{display:flex;flex-direction:column;gap:10px}.card{background:#0d1a2b;border:1px solid #2b4664;border-radius:14px;padding:13px}.card h2{font-size:14px;margin:0 0 9px}.card p{font-size:12px;color:#afc3d9;line-height:1.5;margin:7px 0}
+button{border:1px solid #365677;border-radius:9px;background:#132941;color:#f0f7ff;padding:9px 10px;font-weight:700;font-size:12px;cursor:pointer}button.selected{background:#126bb3;border-color:#78c8ff}button.primary{background:#267fc3;border-color:#5fb8f8}button:active{transform:scale(.98)}
+.row{display:flex;gap:6px;flex-wrap:wrap}.row button{flex:1;min-width:72px}.health{height:7px;background:#24374a;border-radius:9px;overflow:hidden;margin-top:5px}.health span{display:block;height:100%;background:#62dba3}
+#chatlog{height:145px;overflow:auto;background:#071321;border-radius:8px;padding:7px;font-size:12px;line-height:1.5}form{display:flex;gap:5px;margin-top:7px}input{width:0;flex:1;background:#071321;color:white;border:1px solid #304d6c;border-radius:8px;padding:9px;min-width:0}
+#notice{font-size:11px;color:#7de0b5;min-height:28px;line-height:1.4}#playerlist{font-size:12px;line-height:1.8;max-height:100px;overflow:auto}
+footer{color:#738ba5;font-size:10px;line-height:1.4}
+@media(max-width:850px){main{grid-template-columns:1fr;padding:7px}#map{min-height:61vh;max-height:none}.side{display:grid;grid-template-columns:1fr 1fr;align-items:start}.card.chat{grid-column:1/-1}header{padding:10px}.stat{padding:6px 8px}}
+@media(max-width:470px){.side{grid-template-columns:1fr 1fr}.zone{font-size:9px;padding:4px 5px}.zone .pct{font-size:8px}.card{padding:10px}.card h2{font-size:13px}}
+</style></head><body>
+<header><div><h1>🇺🇦 НЕБЕСНИЙ ЩИТ</h1><div class="muted">Онлайн-стратегія • Захищай міста та сектори</div></div>
+<div class="stat">🟢 Онлайн <b id="online">1</b></div><div class="stat">🏅 Очки <b id="score">0</b></div><div class="stat">Сектори <b id="held">0</b>/<b id="total">27</b></div></header>
+<main>
+<section id="map"><canvas id="canvas"></canvas><div class="maplabel">УКРАЇНА · ІГРОВА КАРТА</div></section>
+<aside class="side">
+<div class="card"><h2>🎯 Місія команди</h2><p>Захищай міста, допомагай повертати контроль над секторами та координуйся з іншими гравцями.</p><div id="notice">Підключення до сервера…</div><div class="row"><button id="moveCenter">До центру</button><button id="capture">Захистити сектор</button></div></div>
+<div class="card"><h2>🚁 Обери юніт</h2><div class="row"><button class="unit selected" data-type="drone">🚁 Дрон</button><button class="unit" data-type="fighter">✈ Літак</button><button class="unit" data-type="shield">🛡 Щит</button></div><p id="unitdesc">Дрон: універсальний юніт для завдань на карті.</p><p>Обери юніт, потім натисни на карту, щоб відправити його до точки.</p></div>
+<div class="card"><h2>🏙️ Стан міст</h2><div id="cities"></div></div>
+<div class="card"><h2>👥 Команда</h2><div id="playerlist">Завантаження…</div></div>
+<div class="card chat"><h2>💬 Командний чат</h2><div id="chatlog"></div><form id="chatform"><input id="message" maxlength="180" placeholder="Повідомлення команді…"><button class="primary">Надіслати</button></form></div>
+<div class="card"><h2>🕹️ Керування</h2><p>На телефоні торкайся карти та кнопок. На комп'ютері клацай по секторах і точках карти.</p><footer>Це ігрова стилізація, не точна карта бойових дій. Онлайн-режим потребує запуску сервера.</footer></div>
+</aside></main>
+<script src="/socket.io/socket.io.js"></script>
+<script>
+(()=>{
+const socket=io();const map=document.querySelector('#map'),canvas=document.querySelector('#canvas'),ctx=canvas.getContext('2d');
+let myId=null,state=null,me={x:49,y:45},selected='drone',zones=[];
+const cityNames=['Київ','Львів','Одеса','Дніпро','Харків','Запоріжжя','Чернігів','Миколаїв'];
+const unitText={drone:'Дрон: універсальний юніт для завдань на карті.',fighter:'Літак: швидко дістається до обраної точки.',shield:'Щит: допомагає відновлювати захист найближчого міста.'};
+const $=s=>document.querySelector(s);
+function notice(t){$('#notice').textContent=t}
+function sizeCanvas(){const r=map.getBoundingClientRect(),d=Math.min(devicePixelRatio||1,2);canvas.width=r.width*d;canvas.height=r.height*d;canvas.style.width=r.width+'px';canvas.style.height=r.height+'px';ctx.setTransform(d,0,0,d,0,0);draw()}
+addEventListener('resize',sizeCanvas);
+socket.on('connect',()=>notice('З’єднання із сервером встановлено.'));
+socket.on('disconnect',()=>notice('Зв’язок втрачено — перепідключення…'));
+socket.on('welcome',d=>{myId=d.id;render(d.state)});
+socket.on('state',render);socket.on('notice',notice);
+socket.on('chat',m=>{const el=document.createElement('div');el.textContent=m.name+': '+m.text;$('#chatlog').appendChild(el);$('#chatlog').scrollTop=$('#chatlog').scrollHeight});
+function render(s){
+ state=s;$('#online').textContent=s.online;$('#total').textContent=s.regions.length;
+ const held=s.regions.filter(r=>r.owner==='blue').length;$('#held').textContent=held;
+ const p=s.players[myId];if(p){me={x:p.x,y:p.y};$('#score').textContent=p.score}
+ $('#playerlist').replaceChildren();
+ Object.values(s.players).forEach(p=>{const d=document.createElement('div');d.textContent=(p.id===myId?'⭐ ':'🔹 ')+p.name+' · '+p.score+' оч.';$('#playerlist').appendChild(d)});
+ $('#cities').replaceChildren();
+ s.cities.forEach(c=>{const line=document.createElement('div');line.style.margin='7px 0';line.innerHTML='<div style="display:flex;justify-content:space-between;font-size:11px"><span>'+c.name+'</span><span>'+c.hp+'%</span></div><div class="health"><span style="width:'+c.hp+'%"></span></div>';$('#cities').appendChild(line)});
+ document.querySelectorAll('.zone').forEach(el=>{const r=s.regions.find(z=>z.id===el.dataset.id);if(!r)return;el.classList.toggle('red',r.owner==='red');el.querySelector('.pct').textContent=r.owner==='blue'?'Захищено':('Спірно '+r.progress+'%')});
+ draw();
+}
+function pos(x,y){const r=map.getBoundingClientRect();return{x:x/100*r.width,y:y/100*r.height}}
+function line(a,b,color,w=1){ctx.strokeStyle=color;ctx.lineWidth=w;ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke()}
+function draw(){
+ if(!ctx)return;const r=map.getBoundingClientRect(),w=r.width,h=r.height;ctx.clearRect(0,0,w,h);
+ ctx.strokeStyle='#7395a018';ctx.lineWidth=1;for(let x=0;x<w;x+=28){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,h);ctx.stroke()}for(let y=0;y<h;y+=28){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(w,y);ctx.stroke()}
+ // Stylized outline and internal oblast-like borders
+ const outline=[[.12,.22],[.22,.12],[.36,.16],[.48,.1],[.61,.15],[.73,.22],[.88,.3],[.85,.43],[.91,.53],[.81,.61],[.76,.73],[.67,.78],[.62,.91],[.53,.84],[.45,.8],[.34,.75],[.27,.67],[.18,.61],[.1,.48],[.08,.36]];
+ ctx.beginPath();outline.forEach((p,i)=>{const q={x:p[0]*w,y:p[1]*h};i?ctx.lineTo(q.x,q.y):ctx.moveTo(q.x,q.y)});ctx.closePath();ctx.fillStyle='#1a3936';ctx.fill();ctx.strokeStyle='#75c6a4';ctx.lineWidth=2;ctx.shadowColor='#51bd9a';ctx.shadowBlur=12;ctx.stroke();ctx.shadowBlur=0;
+ // Abstract region grid
+ ctx.save();ctx.beginPath();outline.forEach((p,i)=>{const q={x:p[0]*w,y:p[1]*h};i?ctx.lineTo(q.x,q.y):ctx.moveTo(q.x,q.y)});ctx.closePath();ctx.clip();
+ ctx.strokeStyle='#b0d8c64a';ctx.lineWidth=1;
+ for(let x=.12;x<.9;x+=.105){ctx.beginPath();ctx.moveTo(x*w,.12*h);ctx.lineTo((x-.08)*w,.82*h);ctx.stroke()}
+ for(let y=.2;y<.82;y+=.105){ctx.beginPath();ctx.moveTo(.08*w,y*h);ctx.lineTo(.9*w,(y-.04)*h);ctx.stroke()}
+ ctx.restore();
+ if(state){
+  state.regions.forEach(z=>{const p=pos(z.x,z.y);ctx.beginPath();ctx.arc(p.x,p.y,3,0,Math.PI*2);ctx.fillStyle=z.owner==='blue'?'#63c8ff':'#ff647a';ctx.fill()});
+  state.units&&Object.values(state.units).forEach(u=>{const p=pos(u.x,u.y),t=pos(u.tx,u.ty);line(p,t,u.type==='shield'?'#77edb5aa':'#61baff77',1.5);ctx.save();ctx.translate(p.x,p.y);ctx.rotate(Math.atan2(t.y-p.y,t.x-p.x));ctx.fillStyle=u.type==='shield'?'#75f0b5':'#67c5ff';ctx.shadowColor=ctx.fillStyle;ctx.shadowBlur=9;ctx.beginPath();ctx.moveTo(9,0);ctx.lineTo(-6,-4);ctx.lineTo(-4,0);ctx.lineTo(-6,4);ctx.closePath();ctx.fill();ctx.restore()});
+  state.players&&Object.values(state.players).forEach(p=>{const q=pos(p.x,p.y);ctx.beginPath();ctx.arc(q.x,q.y,p.id===myId?6:4,0,Math.PI*2);ctx.fillStyle=p.id===myId?'#ffdf70':'#91cfff';ctx.fill();ctx.strokeStyle='#eaf7ff';ctx.stroke()});
+ }
+}
+function addZones(s){
+ document.querySelectorAll('.zone').forEach(e=>e.remove());
+ s.regions.forEach(z=>{const el=document.createElement('button');el.className='zone'+(z.owner==='red'?' red':'');el.dataset.id=z.id;el.style.left=z.x+'%';el.style.top=z.y+'%';const n=document.createElement('span');n.textContent=z.owner==='blue'?'Захищено':'Спірно';n.className='pct';el.textContent=z.name;el.appendChild(n);el.onclick=e=>{e.stopPropagation();socket.emit('capture',z.id)};map.appendChild(el)});
+}
+socket.on('welcome',d=>{myId=d.id;addZones(d.state);render(d.state);sizeCanvas()});
+socket.on('state',s=>{if(!document.querySelector('.zone'))addZones(s);render(s)});
+document.querySelectorAll('.unit').forEach(b=>b.onclick=()=>{selected=b.dataset.type;document.querySelectorAll('.unit').forEach(x=>x.classList.toggle('selected',x===b));$('#unitdesc').textContent=unitText[selected]});
+map.addEventListener('click',e=>{if(e.target.closest('.zone'))return;const r=map.getBoundingClientRect(),x=(e.clientX-r.left)/r.width*100,y=(e.clientY-r.top)/r.height*100;socket.emit('launch',{type:selected,x,y})});
+$('#moveCenter').onclick=()=>socket.emit('move',{x:49,y:45});
+$('#capture').onclick=()=>{if(!state)return;const nearest=state.regions.map(z=>({...z,d:Math.hypot(z.x-me.x,z.y-me.y)})).sort((a,b)=>a.d-b.d)[0];if(nearest)socket.emit('capture',nearest.id)};
+$('#chatform').onsubmit=e=>{e.preventDefault();const input=$('#message');if(input.value.trim())socket.emit('chat',input.value);input.value=''};
+sizeCanvas();
+})();
+</script></body></html>
